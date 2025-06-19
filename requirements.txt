@@ -5,5 +5,3 @@ numpy
 matplotlib
 seaborn
 setuptools
-pycryptodome
-oauth2client
