@@ -213,27 +213,35 @@ class EDA:
     def show(self):
         tabs = st.tabs(["기초 통계", "연도별 추이", "지역별 분석", "변화량 분석", "시각화"])
 
+        # 1. 기초 통계
         with tabs[0]:
             st.subheader("📊 기본 통계 및 구조")
-            st.write("데이터프레임 정보:")
-            buffer = self.df.info(buf=None)
-            st.text(str(buffer))
+            buffer = self.df.dtypes.to_string()
+            st.text("데이터프레임 구조:")
+            st.text(buffer)
             st.write("기술 통계:")
-            st.write(self.df.describe())
+            st.dataframe(self.df.describe())
 
+        # 2. 연도별 추이
         with tabs[1]:
             st.subheader("📈 전체 인구 연도별 추이")
             national = self.df[self.df['지역'] == '전국']
             fig, ax = plt.subplots()
             ax.plot(national['연도'], national['인구'], marker='o', label='Actual')
 
-            # 미래 인구 예측 (단순 선형 추정)
+            # 단순 예측
             recent = national.tail(3)
             mean_births = recent['출생아수(명)'].mean()
             mean_deaths = recent['사망자수(명)'].mean()
             projected_growth = mean_births - mean_deaths
-            pop_2035 = national['인구'].iloc[-1] + projected_growth * (2035 - national['연도'].iloc[-1])
-            ax.plot(list(national['연도']) + [2035], list(national['인구']) + [pop_2035], linestyle='--', marker='x', color='red', label='Projected')
+            projected_year = 2035
+            pop_2035 = national['인구'].iloc[-1] + projected_growth * (projected_year - national['연도'].iloc[-1])
+
+            ax.plot(
+                list(national['연도']) + [projected_year],
+                list(national['인구']) + [pop_2035],
+                linestyle='--', marker='x', color='red', label='Projected'
+            )
 
             ax.set_title('Population Trend')
             ax.set_xlabel('Year')
@@ -241,21 +249,22 @@ class EDA:
             ax.legend()
             st.pyplot(fig)
 
+        # 3. 지역별 분석
         with tabs[2]:
             st.subheader("📍 최근 5년간 지역별 인구 변화")
             latest_year = self.df['연도'].max()
             past_year = latest_year - 5
-
             pop_change = self.df[self.df['연도'].isin([past_year, latest_year])]
             pivot = pop_change.pivot(index='지역', columns='연도', values='인구')
             pivot['Change'] = pivot[latest_year] - pivot[past_year]
             pivot['Rate'] = ((pivot['Change'] / pivot[past_year]) * 100).round(2)
-            pivot = pivot.drop(index='전국').sort_values('Change', ascending=False)
+            pivot = pivot.drop(index='전국', errors='ignore').sort_values('Change', ascending=False)
 
-            # 지역명을 영어로 변환 (예시용 매핑)
+            # 지역명을 영어로 변환
             region_map = {region: f"Region_{i}" for i, region in enumerate(pivot.index)}
             pivot['Region'] = pivot.index.map(region_map)
 
+            # Change 그래프
             fig, ax = plt.subplots(figsize=(8, 6))
             sns.barplot(y='Region', x='Change', data=pivot, ax=ax, palette='viridis')
             ax.set_title('Population Change (5 years)')
@@ -265,6 +274,7 @@ class EDA:
                 ax.text(v, i, f'{int(v / 1000)}K', color='black', va='center')
             st.pyplot(fig)
 
+            # Rate 그래프
             fig2, ax2 = plt.subplots(figsize=(8, 6))
             sns.barplot(y='Region', x='Rate', data=pivot, ax=ax2, palette='coolwarm')
             ax2.set_title('Population Growth Rate (%)')
@@ -274,8 +284,9 @@ class EDA:
                 ax2.text(v, i, f'{v:.1f}%', color='black', va='center')
             st.pyplot(fig2)
 
-            st.markdown("**Interpretation:** These graphs show the absolute and percentage population changes by region over the past 5 years.")
+            st.markdown("**Interpretation:** 최근 5년간 지역별 인구 변화(절대 및 비율 기준)를 시각화한 결과입니다.")
 
+        # 4. 변화량 분석
         with tabs[3]:
             st.subheader("📈 연도별 지역 인구 증감 Top 100")
             df_diff = self.df.copy()
@@ -284,15 +295,15 @@ class EDA:
             top100_display = top100[['연도', '지역', 'Change']].copy()
             top100_display['Change'] = top100_display['Change'].apply(lambda x: f"{int(x):,}")
             st.dataframe(
-                top100_display.style.background_gradient(
-                    subset=['Change'], cmap='RdBu', axis=0
-                )
+                top100_display.style.background_gradient(subset=['Change'], cmap='RdBu', axis=0)
             )
 
+        # 5. 누적 영역 그래프
         with tabs[4]:
             st.subheader("📊 누적 영역 그래프 (지역별 연도별 인구)")
             pivot_area = self.df.pivot(index='연도', columns='지역', values='인구').fillna(0)
             pivot_area = pivot_area.drop(columns='전국', errors='ignore')
+
             region_map = {region: f"Region_{i}" for i, region in enumerate(pivot_area.columns)}
             pivot_area.rename(columns=region_map, inplace=True)
 
