@@ -1,8 +1,6 @@
 streamlit
 pyrebase
-io
-time
 pandas
 numpy
-matplotlib.pyplot
+matplotlib
 seaborn
